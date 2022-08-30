@@ -1,0 +1,18 @@
+[
+  {
+    "goodOrderId": "1",
+    "customer": "David",
+    "goodsType":"liquid",
+    "volumeLiquids": 11,
+    "amountItems": 0,
+    "orderTotal": 1000
+  },
+  {
+    "goodOrderId": "2",
+    "customer": "David",
+    "goodsType":"countable",
+    "volumeLiquids": 0,
+    "amountItems": 20,
+    "orderTotal": 50000
+  }
+]

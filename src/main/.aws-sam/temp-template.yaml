@@ -1,0 +1,11 @@
+Resources:
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 300
+      MemorySize: 2048
+      Handler: com.epam.dynamos3.LambdaOrdersHandler
+      CodeUri: /home/david_obando/Documents/EPAM/Java Program/DYNAMO, S3/lambda-orders
+      Runtime: java11
+      Architectures:
+        - x86_64
