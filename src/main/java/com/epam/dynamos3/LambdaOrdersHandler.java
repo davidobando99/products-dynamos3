@@ -18,6 +18,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
 import java.io.*;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,26 +38,20 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
 
         LambdaLogger LOGGER = context.getLogger();
 
-        List<Item> items = DynamodbEventTransformer.toRecordsV1(input)
-                .stream()
-                .map(record -> ItemUtils.toItem(record.getDynamodb().getNewImage()))
-                .collect(Collectors.toList());
-
-        LOGGER.log("Getting event records");
-
-        List<String> products_json = items.stream().map(Item::toJSON).collect(Collectors.toList());
-
-        List<Product> products = mapperObjects(products_json);
-
-        LOGGER.log("New Product "+products);
+        List<Product> products = createProducts(input,context);
 
         LOGGER.log("Connecting to S3 Bucket");
 
         AmazonS3 s3Client = getS3Client();
 
-        InputStream inputProduct = new ByteArrayInputStream(createHtml(products).getBytes());
 
-        createAndUpdateS3(s3Client,inputProduct, products,context);
+        if(!doesLogFileExists(s3Client)){
+            LOGGER.log("Creating new index.html file with new product");
+            InputStream inputProduct = new ByteArrayInputStream(createHtml(products).getBytes());
+            writeStreamToS3File(inputProduct, s3Client);
+        }else{
+            createAndUpdateS3(s3Client,products,context,input);
+        }
 
         return new StreamsEventResponse();
     }
@@ -62,6 +59,32 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
     private AmazonS3 getS3Client(){
         return AmazonS3ClientBuilder.standard()
                 .build();
+    }
+
+    private boolean isUpdate(DynamodbEvent input){
+        return DynamodbEventTransformer.toRecordsV1(input)
+                .stream()
+                .anyMatch(record ->record.getEventName().equals("MODIFY"));
+    }
+
+    private List<Product> createProducts(DynamodbEvent input, Context context){
+        LambdaLogger LOGGER = context.getLogger();
+
+        List<Item> newItems = geImagesFromEvent(input, true);
+        LOGGER.log("Getting new images from event records");
+        List<String> new_products_json = newItems.stream().map(Item::toJSON).collect(Collectors.toList());
+        List<Product> new_products = mapperObjects(new_products_json);
+        LOGGER.log("New Product "+new_products);
+        return new_products;
+
+
+    }
+
+    private List<Item> geImagesFromEvent(DynamodbEvent input, boolean isNewImage){
+        return DynamodbEventTransformer.toRecordsV1(input)
+                .stream()
+                .map(record -> ItemUtils.toItem(isNewImage ? record.getDynamodb().getNewImage(): record.getDynamodb().getOldImage()))
+                .collect(Collectors.toList());
     }
 
     private boolean doesLogFileExists(AmazonS3 s3Client) {
@@ -80,20 +103,22 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
 
     }
 
-    private void createAndUpdateS3(AmazonS3 s3Client, InputStream inputProduct, List<Product> products, Context context){
+    private void createAndUpdateS3(AmazonS3 s3Client, List<Product> products, Context context, DynamodbEvent input){
         LambdaLogger LOGGER = context.getLogger();
 
-        if(!doesLogFileExists(s3Client)){
-            LOGGER.log("Creating new index.html file with new product");
-            writeStreamToS3File(inputProduct, s3Client);
-        }else{
-            try {
+        try {
+            if(!isUpdate(input)) {
                 LOGGER.log("Appending new product to index.html file");
                 InputStream finalStreamHtml = new ByteArrayInputStream(appendToHtml(s3Client,products.get(0)).getBytes());
                 writeStreamToS3File(finalStreamHtml, s3Client);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            }else{
+                LOGGER.log("Updating product in index.html file");
+                InputStream finalStreamHtml = new ByteArrayInputStream(editHtml(s3Client,products.get(0)).getBytes());
+                writeStreamToS3File(finalStreamHtml, s3Client);
             }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
     }
@@ -120,7 +145,6 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
                                         td("Product Name"),
                                         td("Product Price"),
                                         td("Product Category")
-
                                 ),
                                 each(products, product -> tr(
                                        td(
@@ -131,7 +155,7 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
                                         ),
                                         td(
                                                 String.valueOf(product.getCategory()))
-                                        ))
+                                        ).withId(product.getId()))
                         )
 
                 ).withId("table_products")
@@ -150,11 +174,29 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
                         td(newProduct.getPrice()),
                         td(newProduct.getCategory())
 
-                ).render()
+                ).withId(newProduct.getId()).render()
         );
         return doc.html();
 
     }
+
+    private String editHtml(AmazonS3 s3Client, Product updatedProduct) throws IOException {
+        S3Object s3object = s3Client.getObject(S3_BUCKET_NAME, PRODUCTS_FILE_NAME);
+        S3ObjectInputStream inputStream = s3object.getObjectContent();
+
+        Document doc = Jsoup.parse(inputStream,"UTF-8","");
+        Elements product_tr = doc.select("tr#"+updatedProduct.getId());
+        for(Element product:product_tr) {
+            Elements product_tds = product.select("td");
+
+            product_tds.get(0).text(updatedProduct.getName());
+            product_tds.get(1).text(updatedProduct.getPrice());
+            product_tds.get(2).text(updatedProduct.getCategory());
+        }
+        return doc.html();
+
+    }
+
 
 
 
