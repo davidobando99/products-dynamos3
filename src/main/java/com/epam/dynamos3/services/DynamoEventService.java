@@ -11,9 +11,9 @@ import com.epam.dynamos3.pojos.Product;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class EventServiceDynamoImpl implements EventService{
+public class DynamoEventService implements EventService{
 
-    public static MapperService mapperService= new MapperServiceJacksonImpl();
+    public static MapperService mapperService= new JacksonMapperService();
 
     public boolean isUpdate(DynamodbEvent input){
         return DynamodbEventTransformer.toRecordsV1(input)

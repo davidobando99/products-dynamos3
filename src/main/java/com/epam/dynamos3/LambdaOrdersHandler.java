@@ -6,7 +6,7 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.DynamodbEvent;
 import com.amazonaws.services.lambda.runtime.events.StreamsEventResponse;
 import com.epam.dynamos3.services.FileService;
-import com.epam.dynamos3.services.FileServiceS3Impl;
+import com.epam.dynamos3.services.S3FileService;
 
 import java.io.*;
 
@@ -17,7 +17,7 @@ public class LambdaOrdersHandler implements RequestHandler<DynamodbEvent, Serial
 
         LambdaLogger LOGGER = context.getLogger();
 
-        FileService fileService = new FileServiceS3Impl();
+        FileService fileService = new S3FileService();
 
         fileService.processFinalFile(input,context);
 

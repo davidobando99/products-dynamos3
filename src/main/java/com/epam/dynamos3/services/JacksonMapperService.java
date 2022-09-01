@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class MapperServiceJacksonImpl implements MapperService{
+public class JacksonMapperService implements MapperService{
 
     public List<Product> mapperObjects(List<String> products_json){
         ObjectMapper mapper = new ObjectMapper();

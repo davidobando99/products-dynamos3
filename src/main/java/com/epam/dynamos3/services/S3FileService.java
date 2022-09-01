@@ -15,11 +15,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-public class FileServiceS3Impl implements FileService{
+public class S3FileService implements FileService{
 
     private static final AmazonS3 s3Client = new AWSConfig().getS3Client();
-    private static final BuilderService builderService = new BuilderServiceHTMLImpl();
-    private static final EventService eventService = new EventServiceDynamoImpl();
+    private static final BuilderService builderService = new HTMLBuilderService();
+    private static final EventService eventService = new DynamoEventService();
     private final String S3_BUCKET_NAME = "orders-lambda-html";
     private final String PRODUCTS_FILE_NAME = "index";
 

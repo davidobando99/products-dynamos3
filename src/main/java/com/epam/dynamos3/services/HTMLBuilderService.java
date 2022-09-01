@@ -13,7 +13,7 @@ import java.util.List;
 import static j2html.TagCreator.*;
 import static j2html.TagCreator.td;
 
-public class BuilderServiceHTMLImpl implements BuilderService{
+public class HTMLBuilderService implements BuilderService{
 
     public String createHtml(List<Product> products){
         return html(
